@@ -345,17 +345,22 @@ const applyKuwaharaFilter = async () => {
 }
 
 .canvas-section {
-    flex: 1 0 auto;
+    flex: 1 1 auto;
     display: flex;
+    padding: 2rem;
 }
-.canvas {
-    max-width: 100%;
-}
+
 .canvas-wrapper {
     width: 100%;
     display: flex;
     justify-content: center;
-    align-items: center;
+    /*align-items: center;*/
+}
+
+canvas {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
 }
 
 .placeholder {
