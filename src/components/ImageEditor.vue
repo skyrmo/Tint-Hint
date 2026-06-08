@@ -10,9 +10,41 @@
             />
             <button @click="selectImage" class="select-button">Select Image</button>
 
+            <!-- Image adjustment controls -->
+            <div v-if="imageLoaded" class="shader-controls">
+                <h3>Image Adjustments</h3>
+                <div class="slider-group" v-for="(value, key) in adjustmentParams" :key="key">
+                    <label :for="'adj-' + key">{{ key }}: {{ value }}</label>
+                    <input
+                        type="range"
+                        :id="'adj-' + key"
+                        :min="adjustmentRanges[key].min"
+                        :max="adjustmentRanges[key].max"
+                        :step="adjustmentRanges[key].step"
+                        v-model.number="adjustmentParams[key]"
+                    />
+                </div>
+                <button @click="resetAdjustments" class="reset-button">Reset</button>
+            </div>
+
+            <!-- Quantization toggle -->
+            <div v-if="imageLoaded" class="shader-controls">
+                <h3>
+                    <label class="toggle-label">
+                        <input type="checkbox" v-model="quantizationEnabled" />
+                        Colour Quantization
+                    </label>
+                </h3>
+            </div>
+
             <!-- Kuwahara parameter controls -->
             <div v-if="imageLoaded" class="shader-controls">
-                <h3>Kuwahara Filter Parameters</h3>
+                <h3>
+                    <label class="toggle-label">
+                        <input type="checkbox" v-model="kuwaharaEnabled" />
+                        Kuwahara Filter
+                    </label>
+                </h3>
 
                 <div class="slider-group" v-for="(value, key) in kuwaharaParams" :key="key">
                     <label :for="key">{{ key }}: {{ value }}</label>
@@ -63,9 +95,8 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch } from "vue";
-import type { CopicColour } from "../types/types";
+import type { AdjustmentParams, CopicColour, KuwaharaParams } from "../types/types";
 import { ImageEditorService } from "../services/Editor.service";
-import type { KuwaharaParams } from "../types/types";
 
 const canvas = ref<HTMLCanvasElement>();
 const fileInput = ref<HTMLInputElement>();
@@ -109,6 +140,59 @@ const handleCanvasHover = (event: MouseEvent) => {
 const handleCanvasLeave = () => {
     hoveredColour.value = null;
 };
+
+// --- Adjustment Params, slider settings, and reset ---
+const adjustmentParams = ref<AdjustmentParams>({
+    brightness: 0,
+    contrast: 1.0,
+    saturation: 1.0,
+});
+
+const adjustmentRanges: Record<keyof AdjustmentParams, { min: number; max: number; step: number }> =
+    {
+        brightness: { min: -50, max: 50, step: 0.5 },
+        contrast: { min: 0.1, max: 3.0, step: 0.05 },
+        saturation: { min: 0.0, max: 3.0, step: 0.05 },
+    };
+
+const resetAdjustments = () => {
+    adjustmentParams.value = { brightness: 0, contrast: 1.0, saturation: 1.0 };
+};
+
+// --- Quantization toggle ---
+const quantizationEnabled = ref(true);
+
+watch(quantizationEnabled, async (enabled) => {
+    if (!imageEditor || !imageLoaded.value) return;
+    await imageEditor.setQuantizationEnabled(enabled, kuwaharaEnabled.value);
+    if (kuwaharaEnabled.value) {
+        await applyKuwaharaFilter();
+    }
+});
+
+// --- Kuwahara enabled toggle ---
+const kuwaharaEnabled = ref(false);
+
+watch(kuwaharaEnabled, async (enabled) => {
+    if (!imageEditor || !imageLoaded.value) return;
+    if (enabled) {
+        await applyKuwaharaFilter();
+    } else {
+        imageEditor.renderFinalOutput();
+    }
+});
+
+watch(
+    adjustmentParams,
+    async () => {
+        if (!imageEditor || !imageLoaded.value) return;
+        await imageEditor.updateAdjustments({ ...adjustmentParams.value });
+        if (kuwaharaEnabled.value) {
+            await applyKuwaharaFilter();
+        }
+    },
+    { deep: true },
+);
 
 // --- Kuwahara Params and slider settings ---
 const kuwaharaParams = ref<KuwaharaParams>({
@@ -186,7 +270,7 @@ const handleFileSelect = async (event: Event) => {
 watch(
     kuwaharaParams,
     async () => {
-        if (imageEditor && imageLoaded.value) {
+        if (imageEditor && imageLoaded.value && kuwaharaEnabled.value) {
             await applyKuwaharaFilter();
         }
     },
@@ -239,6 +323,20 @@ const applyKuwaharaFilter = async () => {
     display: flex;
     flex-direction: column;
     margin-bottom: 0.5rem;
+}
+
+.toggle-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+.reset-button {
+    margin-top: 0.5rem;
+    width: 100%;
 }
 
 .slider-group label {

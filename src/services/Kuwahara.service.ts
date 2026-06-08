@@ -30,6 +30,7 @@ export class KuwaharaService {
 
     // Parameters
     private kuwaharaParams!: KuwaharaParams;
+    private kuwaharaInputKey = "final_rgb_output";
 
     constructor(textureManager: TextureManagerService) {
         this.core = WebGPUCore.getInstance();
@@ -103,8 +104,9 @@ export class KuwaharaService {
         });
     }
 
-    async runKuwahara(kuwaharaParams: KuwaharaParams): Promise<void> {
+    async runKuwahara(kuwaharaParams: KuwaharaParams, inputKey: string): Promise<void> {
         this.kuwaharaParams = kuwaharaParams;
+        this.kuwaharaInputKey = inputKey;
 
         // 1. Structure Tensor Computation
         await this.runStructureTensorComputation();
@@ -123,9 +125,9 @@ export class KuwaharaService {
         const device = this.core.getDevice();
 
         // Get input texture
-        const inputTexture = this.textureManager.getTexture("final_rgb_output");
+        const inputTexture = this.textureManager.getTexture(this.kuwaharaInputKey);
         if (!inputTexture) {
-            throw new Error(`Texture with key "original" not found`);
+            throw new Error(`Texture with key "${this.kuwaharaInputKey}" not found`);
         }
 
         // Labels texture: stores which centroid each pixel belongs to
@@ -326,7 +328,7 @@ export class KuwaharaService {
         const device = this.core.getDevice();
 
         // Get input textures
-        const originalTexture = this.textureManager.getTexture("final_rgb_output");
+        const originalTexture = this.textureManager.getTexture(this.kuwaharaInputKey);
         const eigenvectorTexture = this.textureManager.getTexture("eigenvector_output");
 
         if (!originalTexture || !eigenvectorTexture) {

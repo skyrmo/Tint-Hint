@@ -15,6 +15,12 @@ export interface KuwaharaParams {
     sigma: number;
 }
 
+export interface AdjustmentParams {
+    brightness: number; // L* additive offset: -50 to +50, default 0
+    contrast: number; // L* scale around midpoint: 0.1 to 3.0, default 1.0
+    saturation: number; // a*/b* scale factor: 0.0 to 3.0, default 1.0
+}
+
 export interface CopicColour {
     code: string;
     name: string;
