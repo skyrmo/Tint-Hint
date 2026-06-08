@@ -123,7 +123,7 @@ export class KuwaharaService {
         const device = this.core.getDevice();
 
         // Get input texture
-        const inputTexture = this.textureManager.getTexture("original");
+        const inputTexture = this.textureManager.getTexture("final_rgb_output");
         if (!inputTexture) {
             throw new Error(`Texture with key "original" not found`);
         }
@@ -226,9 +226,7 @@ export class KuwaharaService {
         device.queue.writeBuffer(this.kuwaharaParamsBuffer, 0, bufferData);
 
         // Execute blur pass with appropriate pipeline
-        const pipeline = isHorizontal
-            ? this.blurHorizontalPipeline
-            : this.blurVerticalPipeline;
+        const pipeline = isHorizontal ? this.blurHorizontalPipeline : this.blurVerticalPipeline;
 
         const encoder = device.createCommandEncoder();
         const pass = encoder.beginComputePass();
@@ -328,7 +326,7 @@ export class KuwaharaService {
         const device = this.core.getDevice();
 
         // Get input textures
-        const originalTexture = this.textureManager.getTexture("original");
+        const originalTexture = this.textureManager.getTexture("final_rgb_output");
         const eigenvectorTexture = this.textureManager.getTexture("eigenvector_output");
 
         if (!originalTexture || !eigenvectorTexture) {

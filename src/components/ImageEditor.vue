@@ -14,11 +14,7 @@
             <div v-if="imageLoaded" class="shader-controls">
                 <h3>Kuwahara Filter Parameters</h3>
 
-                <div
-                    class="slider-group"
-                    v-for="(value, key) in kuwaharaParams"
-                    :key="key"
-                >
+                <div class="slider-group" v-for="(value, key) in kuwaharaParams" :key="key">
                     <label :for="key">{{ key }}: {{ value }}</label>
                     <input
                         type="range"
@@ -42,9 +38,23 @@
 
         <div class="canvas-section">
             <div class="canvas-wrapper">
-                <canvas ref="canvas"></canvas>
-                <div v-if="!imageLoaded" class="placeholder">
-                    Select an image to display
+                <canvas
+                    ref="canvas"
+                    @mousemove="handleCanvasHover"
+                    @mouseleave="handleCanvasLeave"
+                ></canvas>
+                <div v-if="!imageLoaded" class="placeholder">Select an image to display</div>
+                <div
+                    v-if="hoveredColour"
+                    class="colour-tooltip"
+                    :style="{ left: tooltipPos.x + 'px', top: tooltipPos.y + 'px' }"
+                >
+                    <span
+                        class="colour-swatch"
+                        :style="{ backgroundColor: hoveredColour.hex }"
+                    ></span>
+                    <span class="colour-code">{{ hoveredColour.code }}</span>
+                    <span class="colour-name">{{ hoveredColour.name }}</span>
                 </div>
             </div>
         </div>
@@ -53,6 +63,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch } from "vue";
+import type { CopicColour } from "../types/types";
 import { ImageEditorService } from "../services/Editor.service";
 import type { KuwaharaParams } from "../types/types";
 
@@ -66,31 +77,60 @@ const imageLoaded = ref<boolean>(false);
 
 let imageEditor: ImageEditorService | null = null;
 
+// --- Hover / tooltip state ---
+const hoveredColour = ref<CopicColour | null>(null);
+const tooltipPos = ref({ x: 0, y: 0 });
+
+const handleCanvasHover = (event: MouseEvent) => {
+    if (!imageEditor || !canvas.value) return;
+
+    const rect = canvas.value.getBoundingClientRect();
+    const scaleX = canvas.value.width / rect.width;
+    const scaleY = canvas.value.height / rect.height;
+    const tx = Math.floor(event.offsetX * scaleX);
+    const ty = Math.floor(event.offsetY * scaleY);
+
+    hoveredColour.value = imageEditor.getCopicColourAtPixel(tx, ty);
+
+    // Position tooltip relative to the wrapper (canvas is centred inside it)
+    const wrapperRect = canvas.value.parentElement!.getBoundingClientRect();
+    const xInWrapper = event.clientX - wrapperRect.left;
+    const yInWrapper = event.clientY - wrapperRect.top;
+
+    const offset = 12;
+    const tooltipWidth = 200;
+    const x =
+        xInWrapper + offset + tooltipWidth > wrapperRect.width
+            ? xInWrapper - tooltipWidth - offset
+            : xInWrapper + offset;
+    tooltipPos.value = { x, y: yInWrapper - 40 };
+};
+
+const handleCanvasLeave = () => {
+    hoveredColour.value = null;
+};
+
 // --- Kuwahara Params and slider settings ---
 const kuwaharaParams = ref<KuwaharaParams>({
-    kernelSize: 10,
-    sharpness: 0.8,
-    hardness: 0.5,
-    alpha: 4.0,
+    kernelSize: 18,
+    sharpness: 2.8,
+    hardness: 1.5,
+    alpha: 3.0,
     zeroCrossing: 0.1,
-    zeta: 0.05,
+    zeta: 0.01,
     sigma: 5.0,
 });
 
-const sliderRanges: Record<
-    keyof KuwaharaParams,
-    { min: number; max: number; step: number }
-> = {
+const sliderRanges: Record<keyof KuwaharaParams, { min: number; max: number; step: number }> = {
     kernelSize: { min: 1, max: 160, step: 1 },
     sharpness: { min: 0.1, max: 20.0, step: 0.1 },
     hardness: { min: 0.1, max: 20.0, step: 0.1 },
     alpha: { min: 0.01, max: 10.0, step: 0.01 },
-    zeroCrossing: { min: 0, max: 3.14, step: 0.1 },
+    zeroCrossing: { min: 0.1, max: 3.14, step: 0.1 },
     zeta: { min: 0.01, max: 6.0, step: 0.01 },
     sigma: { min: 0.5, max: 200.0, step: 0.1 },
 };
 
-// --- Lifecycle ---
 onMounted(async () => {
     if (!canvas.value) return;
 
@@ -98,8 +138,7 @@ onMounted(async () => {
         imageEditor = new ImageEditorService();
         await imageEditor.initialize(canvas.value);
     } catch (err) {
-        error.value =
-            err instanceof Error ? err.message : "Failed to initialize WebGPU";
+        error.value = err instanceof Error ? err.message : "Failed to initialize WebGPU";
         console.error("WebGPU initialization error:", err);
     }
 });
@@ -134,8 +173,8 @@ const handleFileSelect = async (event: Event) => {
         await imageEditor.loadImage(file);
         imageLoaded.value = true;
 
-        // Apply shader initially
-        await applyKuwaharaFilter();
+        // // Apply shader initially
+        // await applyKuwaharaFilter();
     } catch (err) {
         error.value = err instanceof Error ? err.message : "Failed to load image";
         console.error("Image loading error:", err);
@@ -162,8 +201,7 @@ const applyKuwaharaFilter = async () => {
         await imageEditor.runKuwaharaFilter({ ...kuwaharaParams.value });
     } catch (err) {
         console.error("Shader apply error:", err);
-        error.value =
-            err instanceof Error ? err.message : "Failed to apply Kuwahara filter";
+        error.value = err instanceof Error ? err.message : "Failed to apply Kuwahara filter";
     } finally {
         processing.value = false;
     }
@@ -228,5 +266,38 @@ const applyKuwaharaFilter = async () => {
     left: 50%;
     transform: translate(-50%, -50%);
     color: #777;
+}
+
+.colour-tooltip {
+    position: absolute;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.35rem 0.6rem;
+    background: rgba(20, 20, 20, 0.85);
+    backdrop-filter: blur(4px);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 6px;
+    pointer-events: none;
+    white-space: nowrap;
+    font-size: 0.8rem;
+}
+
+.colour-swatch {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border-radius: 3px;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    flex-shrink: 0;
+}
+
+.colour-code {
+    font-weight: 600;
+    color: #e0e0e0;
+}
+
+.colour-name {
+    color: #a0a0a0;
 }
 </style>
